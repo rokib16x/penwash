@@ -52,6 +52,9 @@ Each paragraph is rewritten with a system prompt built from your tone, strength 
 
 ## Limitations
 
+- Rewrite mode checks every paragraph for language drift, invented content, dropped numbers and names, and chatty openers. Failing paragraphs are retried and, if still unreliable, left as the original. The Details panel lists them. These checks cannot catch subtle changes in meaning, so read legal, medical and other precise text yourself.
+- Multilingual models can occasionally slip into another language. English-focused models such as Llama or Gemma are a good alternative to Qwen for English text.
+
 - The stats describe writing style. They do not predict what any commercial AI detector will say, and no local tool can.
 - Output quality depends on the model you choose. Larger models preserve meaning better.
 - Review the result before you use it. You are responsible for following any school, employer or publisher policy on AI-assisted writing.

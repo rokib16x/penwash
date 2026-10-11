@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from cleaner import clean as clean_text
+from guards import check, hard, is_structural, strip_preface
 
 OLLAMA = "http://127.0.0.1:11434"
 STATIC = Path(__file__).parent / "static"
@@ -27,10 +28,10 @@ STOCK_PHRASES = [
 ]
 
 TONES = {
-    "natural": "Plain, conversational, the way a thoughtful person writes an email to a colleague.",
+    "natural": "Plain, clear, natural prose. Contractions are fine. No slang and no chatty filler.",
     "casual": "Relaxed and friendly. Contractions, short punchy lines, a little personality.",
     "professional": "Clear and confident business writing. Direct, no jargon, no fluff.",
-    "academic": "Measured and precise, but still readable. No inflated vocabulary.",
+    "academic": "Measured and precise, but still readable. Formal register, no slang, no inflated vocabulary.",
 }
 
 
@@ -68,10 +69,6 @@ def metrics(text: str) -> dict:
     }
 
 
-def numbers(text: str) -> set[str]:
-    return set(re.findall(r"\d[\d,.]*", text))
-
-
 def system_prompt(r: Req) -> str:
     s = r.strength
     if s < 35:
@@ -88,13 +85,17 @@ def system_prompt(r: Req) -> str:
         "You are an editor who rewrites text so it reads like a real person wrote it.\n"
         f"Tone: {TONES.get(r.tone, TONES['natural'])}\n{depth}\n{voice}"
         "Rules:\n"
-        "- Preserve the exact meaning, facts, names, numbers and any quoted text. Do not add new claims.\n"
-        "- Vary sentence length a lot: mix very short sentences with longer ones.\n"
-        "- Prefer simple, concrete words. Use contractions where natural.\n"
+        "- Write in the same language as the input. Never switch languages or add other scripts.\n"
+        "- Preserve the exact meaning. Keep every fact, name, law, section number, year and figure.\n"
+        "- Never add ideas, examples, definitions or explanations that are not in the input. "
+        "Keep roughly the same length.\n"
+        "- Keep the input's wording level: if it says 'children', do not change it to 'kids'.\n"
+        "- Vary sentence length: mix short sentences with longer ones. Prefer simple, concrete words.\n"
         "- Avoid stock phrases such as: " + ", ".join(STOCK_PHRASES[:18]) + ".\n"
-        "- No tidy summary sentence at the end of paragraphs. No lists unless the input has one.\n"
+        "- No tidy summary sentence at the end. No lists unless the input has one.\n"
         f"{dashes}"
-        "- Output ONLY the rewritten text. No preface, no notes, no quotes around it."
+        "- The user message may begin with a 'Section' line. It is context only: never rewrite or repeat it.\n"
+        "- Output ONLY the rewritten text. No preface such as 'Sure' or 'Here is', no notes, no quotes."
     )
 
 
@@ -105,12 +106,13 @@ def cleanup(text: str, keep_dashes: bool) -> str:
     return re.sub(r"[ \t]+", " ", t)
 
 
-async def chat_stream(client: httpx.AsyncClient, model: str, system: str, user: str, temp: float):
+async def chat_stream(client: httpx.AsyncClient, model: str, system: str, user: str, temp: float, limit: int):
     payload = {
         "model": model,
         "stream": True,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        "options": {"temperature": temp, "top_p": 0.92, "repeat_penalty": 1.1, "num_ctx": 8192},
+        # repeat_penalty stays at 1.0: higher values push multilingual models into other languages.
+        "options": {"temperature": temp, "top_p": 0.9, "repeat_penalty": 1.0, "num_ctx": 8192, "num_predict": limit},
     }
     async with client.stream("POST", f"{OLLAMA}/api/chat", json=payload) as resp:
         async for line in resp.aiter_lines():
@@ -154,38 +156,53 @@ def clean_only(body: dict):
     return {"text": out, "changes": changes, "before": metrics(src), "after": metrics(out)}
 
 
+def build_user(para: str, section: str, problems: list[tuple[str, str]] | None) -> str:
+    msg = f"Section (context only): {section}\n\nText to rewrite:\n{para}" if section else para
+    if problems:
+        why = "; ".join(f"{k}: {d}" for k, d in problems)
+        msg += f"\n\n(Your last attempt was rejected: {why}. Rewrite the text again, in English only, fixing this.)"
+    return msg
+
+
 @app.post("/api/rewrite")
 async def rewrite(r: Req):
     async def gen():
         paras = [p for p in re.split(r"\n\s*\n", r.text.strip()) if p.strip()]
-        temp = 0.5 + r.strength / 100 * 0.5
+        base_temp = 0.3 + r.strength / 100 * 0.4
         system = system_prompt(r)
-        final = []
-        warnings = []
+        final, warnings, section = [], [], ""
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(300, connect=5)) as client:
                 for i, para in enumerate(paras):
-                    if para.lstrip().startswith("#") or len(para.split()) < 5:
-                        kept = re.sub(r"^\s*#+\s*", "", para).strip()
+                    if is_structural(para):
+                        kept = para.strip()
+                        if kept.startswith(("#", "**", "__")):
+                            section = re.sub(r"[#*_]", "", kept).strip()
                         yield ev(type="para_done", para=i, text=kept)
                         final.append(kept)
                         continue
-                    best = ""
-                    for attempt in range(max(1, r.passes)):
-                        user = para if attempt == 0 else (
-                            f"{para}\n\n(Previous attempt still used these stock phrases or was too uniform: "
-                            f"{', '.join(stock_hits(best)) or 'uniform sentence length'}. Rewrite again, avoiding them.)"
-                        )
+                    best, best_problems, best_score = "", [], None
+                    for attempt in range(max(0, r.passes) + 1):
+                        temp = max(0.15, base_temp - 0.12 * attempt)
+                        user = build_user(para, section, best_problems if attempt else None)
                         yield ev(type="start", para=i, attempt=attempt)
                         buf = ""
-                        async for piece in chat_stream(client, r.model, system, user, temp):
+                        async for piece in chat_stream(client, r.model, system, user, temp, len(para.split()) * 3 + 120):
                             buf += piece
                             yield ev(type="token", para=i, text=piece)
-                        best = cleanup(buf, r.keep_dashes)
-                        if not stock_hits(best):
+                        cand = cleanup(strip_preface(buf, para), r.keep_dashes)
+                        problems = check(para, cand, r.tone)
+                        score = (1000 if hard(problems) else 0) + 10 * len(problems) + len(stock_hits(cand))
+                        if best_score is None or score < best_score:
+                            best, best_problems, best_score = cand, problems, score
+                        if not problems and not stock_hits(cand):
                             break
-                    if numbers(para) - numbers(best):
-                        warnings.append(f"Paragraph {i + 1}: a number from the original may be missing.")
+                    if hard(best_problems):
+                        detail = "; ".join(d for _, d in best_problems)
+                        warnings.append(f"Paragraph {i + 1}: the rewrite was unreliable ({detail}), so the original was kept.")
+                        best = para.strip()
+                    elif best_problems:
+                        warnings.append(f"Paragraph {i + 1}: check this one ({'; '.join(f'{k}: {d}' for k, d in best_problems)}).")
                     yield ev(type="para_done", para=i, text=best)
                     final.append(best)
         except httpx.ConnectError:

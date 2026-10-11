@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
-from app import app, metrics, numbers, stock_hits
+from app import app, metrics, stock_hits
+from guards import protected
 
 client = TestClient(app)
 
@@ -20,4 +21,4 @@ def test_metrics_and_helpers():
     m = metrics("Short one. This sentence is quite a bit longer than the first.")
     assert m["sentences"] == 2 and m["burstiness"] > 0
     assert "delve" in stock_hits("Let us delve in.")
-    assert numbers("Up 40% to 1,200") == {"40", "1,200"}
+    assert protected("Up 40% to 1,200")[0] == {"40", "1,200"}
