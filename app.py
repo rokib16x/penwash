@@ -39,17 +39,22 @@ FICTION_TELLS = [
 
 TONES = {
     "fiction": "Natural storytelling prose. Concrete detail, subtext instead of stated emotion, varied rhythm.",
-    "natural": "Plain, clear, natural prose. Contractions are fine. No slang and no chatty filler.",
-    "casual": "Relaxed and friendly. Contractions, short punchy lines, a little personality.",
-    "professional": "Clear and confident business writing. Direct, no jargon, no fluff.",
-    "academic": "Measured and precise, but still readable. Formal register, no slang, no inflated vocabulary.",
+    "general": (
+        "Plain, clear, natural prose in the input's own register. Formal text stays formal and casual text "
+        "stays casual. No slang and no chatty filler."
+    ),
 }
+
+
+def norm_tone(tone: str) -> str:
+    """Old tone names (natural, casual, professional, academic) all mean General now."""
+    return tone if tone in TONES else "general"
 
 
 class Req(BaseModel):
     text: str
     model: str = DEFAULT_MODEL
-    tone: str = "natural"
+    tone: str = "fiction"
     strength: int = 60  # 0..100
     passes: int = 2
     voice_sample: str = ""
@@ -93,7 +98,7 @@ def system_prompt(r: Req) -> str:
         voice = f"\nMatch the voice, rhythm and word choice of this writing sample:\n\"\"\"\n{r.voice_sample.strip()[:2500]}\n\"\"\"\n"
     dashes = "" if r.keep_dashes else "- Do not use em dashes. Use commas, periods or parentheses.\n"
     fiction_rules = ""
-    if r.tone == "fiction":
+    if norm_tone(r.tone) == "fiction":
         fiction_rules = (
             "Fiction rules:\n"
             "- Keep every line of dialogue exactly as written, inside its quotation marks.\n"
@@ -101,11 +106,14 @@ def system_prompt(r: Req) -> str:
             "- Show, don't explain: cut sentences that tell the reader what a gesture or feeling means.\n"
             "- Replace stock reactions with something specific to this scene. Avoid: "
             + ", ".join(FICTION_TELLS[:14]) + ".\n"
+            "- Prefer plain dialogue tags ('said') and concrete nouns and verbs over adverbs and hedges "
+            "like 'seemed to' or 'as if'.\n"
+            "- Do not start the paragraph the way the previous one started. Avoid lists of three.\n"
             "- Do not end on a tidy moral or summary line. Vary paragraph and sentence length.\n"
         )
     return (
         "You are an editor who rewrites text so it reads like a real person wrote it.\n"
-        f"Tone: {TONES.get(r.tone, TONES['natural'])}\n{depth}\n{voice}"
+        f"Tone: {TONES[norm_tone(r.tone)]}\n{depth}\n{voice}"
         f"{fiction_rules}"
         "Rules:\n"
         "- Write in the same language as the input. Never switch languages or add other scripts.\n"
@@ -199,7 +207,8 @@ def build_user(para: str, section: str, prev: str, problems: list[tuple[str, str
 async def rewrite(r: Req):
     async def gen():
         paras = [p for p in re.split(r"\n\s*\n", r.text.strip()) if p.strip()]
-        fiction = r.tone == "fiction"
+        tone = norm_tone(r.tone)
+        fiction = tone == "fiction"
         base_temp = 0.3 + r.strength / 100 * 0.4 + (0.1 if fiction else 0)
         system = system_prompt(r)
         final, warnings, section = [], [], ""
@@ -224,7 +233,7 @@ async def rewrite(r: Req):
                             buf += piece
                             yield ev(type="token", para=i, text=piece)
                         cand = cleanup(strip_preface(buf, para), r.keep_dashes, para)
-                        problems = check(para, cand, r.tone)
+                        problems = check(para, cand, tone)
                         hits = stock_hits(cand, fiction)
                         if hits:
                             problems.append(("stock phrases", ", ".join(hits[:4])))

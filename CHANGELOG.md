@@ -20,6 +20,7 @@ All notable changes to this project are documented here. The format follows
 - A leading or trailing quotation mark on real dialogue was being stripped.
 
 ### Changed
+- Two formats now: **Fiction** (default, with deeper tuning) and **General** for any non-fiction text. The Natural, Casual, Professional and Academic tones are merged into General, and the API still accepts the old names.
 - "Retry passes" now means retries after the first attempt.
 - The section heading is passed to the model as context so short paragraphs keep their subject.
 

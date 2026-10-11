@@ -36,3 +36,10 @@ def test_cleanup_keeps_leading_dialogue_quote():
     orig = '"Neither did I," she said.'
     assert cleanup('"Neither did I," she said.', False, orig) == orig
     assert cleanup('"The model wrapped this."', False, "The model wrapped this.") == "The model wrapped this."
+
+
+def test_old_tones_map_to_general():
+    from app import norm_tone
+
+    assert [norm_tone(t) for t in ("natural", "casual", "professional", "academic", "")] == ["general"] * 5
+    assert norm_tone("fiction") == "fiction"

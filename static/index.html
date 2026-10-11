@@ -58,8 +58,6 @@ button,select,textarea,input{font-family:inherit;font-size:inherit;font-weight:i
 .lab .val{color:var(--accent);font-weight:900}
 .seg{display:grid;gap:3px;background:var(--sunken);border-radius:10px;padding:3px}
 .seg.two{grid-template-columns:1fr 1fr}
-.seg.four{grid-template-columns:1fr 1fr}
-.seg.four button:last-child:nth-child(odd){grid-column:1/-1}
 .seg button{border:0;background:none;padding:7px 4px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;color:var(--muted)}
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
 .seg button:not([aria-pressed="true"]):hover{color:var(--ink)}
@@ -152,14 +150,12 @@ dialog::backdrop{background:#0008}
 
         <div class="rw">
           <div class="field">
-            <div class="lab">Tone</div>
-            <div class="seg four" id="tone" role="group" aria-label="Tone">
-              <button aria-pressed="true" data-v="natural">Natural</button>
-              <button aria-pressed="false" data-v="casual">Casual</button>
-              <button aria-pressed="false" data-v="professional">Professional</button>
-              <button aria-pressed="false" data-v="academic">Academic</button>
-              <button aria-pressed="false" data-v="fiction">Fiction</button>
+            <div class="lab">Format</div>
+            <div class="seg two" id="tone" role="group" aria-label="Format">
+              <button aria-pressed="true" data-v="fiction">Fiction</button>
+              <button aria-pressed="false" data-v="general">General</button>
             </div>
+            <p class="desc" id="toneDesc">Stories and novels. Keeps dialogue, point of view and tense.</p>
           </div>
 
           <div class="field">
@@ -219,7 +215,8 @@ dialog::backdrop{background:#0008}
 
 <script>
 const $=s=>document.querySelector(s);
-const state={mode:"rewrite",tone:"natural"};
+const state={mode:"rewrite",tone:"fiction"};
+const TONE_DESC={fiction:"Stories and novels. Keeps dialogue, point of view and tense.",general:"Essays, reports, emails and everything else that is not fiction."};
 const words=t=>(t.trim().match(/\S+/g)||[]).length;
 const root=document.documentElement;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -235,7 +232,7 @@ function bindSeg(id,cb){
   document.querySelectorAll(`#${id} button`).forEach(b=>b.onclick=()=>{
     document.querySelectorAll(`#${id} button`).forEach(x=>x.setAttribute("aria-pressed",x===b));cb(b.dataset.v)});
 }
-bindSeg("tone",v=>state.tone=v);
+bindSeg("tone",v=>{state.tone=v;$("#toneDesc").textContent=TONE_DESC[v]});
 bindSeg("mode",v=>{
   state.mode=v; $("#modeDesc").textContent=DESC[v];
   document.querySelectorAll(".rw").forEach(e=>e.classList.toggle("off",v==="clean"));
