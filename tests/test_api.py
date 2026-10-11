@@ -22,3 +22,17 @@ def test_metrics_and_helpers():
     assert m["sentences"] == 2 and m["burstiness"] > 0
     assert "delve" in stock_hits("Let us delve in.")
     assert protected("Up 40% to 1,200")[0] == {"40", "1,200"}
+
+
+def test_fiction_tells_only_flagged_in_fiction():
+    text = "A shiver ran down her spine as the air was thick with dread."
+    assert stock_hits(text) == []
+    assert "shiver ran down" in stock_hits(text, fiction=True)
+
+
+def test_cleanup_keeps_leading_dialogue_quote():
+    from app import cleanup
+
+    orig = '"Neither did I," she said.'
+    assert cleanup('"Neither did I," she said.', False, orig) == orig
+    assert cleanup('"The model wrapped this."', False, "The model wrapped this.") == "The model wrapped this."

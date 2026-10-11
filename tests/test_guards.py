@@ -52,3 +52,19 @@ def test_preface_stripped_only_when_added():
     assert strip_preface("Sure, India can improve.", "India can improve.") == "India can improve."
     assert strip_preface("Here's the rewrite: It works.", "It works.") == "It works."
     assert strip_preface("Sure thing. Go on.", "Sure thing. Go on.") == "Sure thing. Go on."
+
+
+def test_dialogue_must_be_kept_verbatim():
+    orig = 'She shrugged. "I never wanted this job," he said.'
+    assert any(k == "dialogue" for k, _ in check(orig, 'She shrugged. "I did not want this job," he said.'))
+    assert check(orig, 'She shrugged. "I never wanted this job," he said.', "fiction") == []
+
+
+def test_fiction_tone_skips_slang_check():
+    out = "The Children Act 2013 sets the rules for kids who run into trouble with the law in Bangladesh."
+    assert not any(k == "slang" for k, _ in check(PARA, out, "fiction"))
+
+
+def test_missing_opening_quote_is_caught():
+    orig = '"I never thought you\'d come back," Marcus said.'
+    assert any(k == "dialogue" for k, _ in check(orig, 'I never thought you\'d come back," Marcus said.'))

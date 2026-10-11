@@ -10,6 +10,15 @@ All notable changes to this project are documented here. The format follows
 - Headings such as `**b. Child Affairs Police Officers**` were treated as paragraphs and replaced with invented text. Headings, list items, tables and code are now detected structurally and passed through untouched.
 - Chatty openers ("Sure thing.", "Here's the rewrite:"), slang drift ("kids", "folks"), dropped numbers and names, and runaway length are now detected per paragraph and retried. Paragraphs that stay unreliable keep the original text and are listed under Details.
 
+### Added
+- Fiction tone: keeps point of view, tense and dialogue, cuts stated emotion and stock reactions ("a shiver ran down", "little did she know"), and avoids neat closing lines.
+- Dialogue guard: quoted lines must come back word for word, quote marks included.
+- Previous rewritten paragraph is passed as context for continuity.
+- Stock phrases found in a rewrite are fed back to the model on retry and listed in Details if they survive.
+
+### Fixed (continued)
+- A leading or trailing quotation mark on real dialogue was being stripped.
+
 ### Changed
 - "Retry passes" now means retries after the first attempt.
 - The section heading is passed to the model as context so short paragraphs keep their subject.

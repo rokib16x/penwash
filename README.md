@@ -8,7 +8,7 @@ Turn stiff, over-polished drafts into plain, natural writing. Penwash runs entir
 ## Features
 
 - **Two modes.** *Rewrite* uses a local model to rewrite in plainer words. *Clean up only* keeps your exact wording and removes machine-text tells: em dashes, emoji, markdown symbols, filler openers ("Furthermore,") and stock words ("utilize", "leverage"). Clean-up needs no model and lists every change it made.
-- Tone presets: natural, casual, professional, academic
+- Tone presets: natural, casual, professional, academic, fiction (keeps dialogue, point of view and tense)
 - Rewrite strength slider, from light edits to a full rewrite
 - Optional writing sample, so the model imitates your own voice
 - Streaming output, paragraph by paragraph

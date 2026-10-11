@@ -86,12 +86,27 @@ def check(orig: str, out: str, tone: str = "natural") -> list[tuple[str, str]]:
     miss_names = sorted(n for n in names_in if n not in out_low)
     if miss_names and (len(miss_names) >= 2 or len(miss_names) / max(len(names_in), 1) >= 0.5):
         problems.append(("missing", "names: " + ", ".join(miss_names[:5])))
-    if tone != "casual":
+    quotes = dialogue(orig)
+    if quotes:
+        flat = re.sub(r"\s+", " ", _straight(out))
+        lost = [q for q in quotes if f'"{q}"' not in flat]
+        if lost:
+            problems.append(("dialogue", f"{len(lost)} line(s) changed: " + "; ".join(x[:30] for x in lost[:2])))
+    if tone not in ("casual", "fiction"):
         orig_low = orig.lower()
         slang = [s for s in SLANG if s in out_low and s not in orig_low]
         if slang:
             problems.append(("slang", ", ".join(slang[:4])))
     return problems
+
+
+def _straight(text: str) -> str:
+    return text.replace("\u201c", '"').replace("\u201d", '"')
+
+
+def dialogue(text: str) -> list[str]:
+    spans = re.findall(r'"([^"\n]{3,})"', _straight(text))
+    return [re.sub(r"\s+", " ", x).strip() for x in spans]
 
 
 def hard(problems: list[tuple[str, str]]) -> bool:
