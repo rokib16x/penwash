@@ -1,0 +1,28 @@
+[project]
+name = "penwash"
+version = "0.1.0"
+description = "A private, local-first writing tool that removes the tells of machine-written text, using Ollama or plain rules."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Rokibul Hasan" }]
+keywords = ["writing", "editing", "ollama", "local-first", "text", "fastapi"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Environment :: Web Environment",
+  "Topic :: Text Processing",
+]
+dependencies = ["fastapi", "uvicorn", "httpx"]
+
+[project.urls]
+Homepage = "https://github.com/rokib16x/penwash"
+Issues = "https://github.com/rokib16x/penwash/issues"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
